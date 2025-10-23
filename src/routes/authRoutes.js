@@ -53,10 +53,8 @@ router.post("/register", async (req, res) => {
     try {
         const { fullName, username, email, password } = req.body;
         const data = await AuthService.register(fullName, username, email, password);
-        // 3. Trả về { message, userId }
         res.status(201).json(data);
     } catch (error) {
-        // Báo lỗi (VD: Email đã tồn tại)
         res.status(400).json({ error: error.message });
     }
 });

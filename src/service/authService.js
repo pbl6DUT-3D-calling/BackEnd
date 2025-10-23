@@ -91,6 +91,5 @@ class AuthService {
   }
 }
 
-// (Bạn có thể thêm logic forgotPassword/resetPassword vào đây nếu cần)
 
 module.exports = AuthService;
