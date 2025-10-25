@@ -80,7 +80,7 @@ class AuthService {
       user: {
         user_id: user.user_id,
         username: user.username,
-        fullName: user.full_name, // Gửi full_name
+        fullName: user.fullname, // Gửi full_name
         role: user.role,
         email: user.email,
         avatar: user.avatar_url,
