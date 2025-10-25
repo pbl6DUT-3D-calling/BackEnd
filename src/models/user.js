@@ -20,6 +20,10 @@ module.exports = (sequelize) => {
         allowNull: false,
         unique: true, // <-- Thêm: Email nên là duy nhất
       },
+      fullname: { // Thêm trường full_name
+        type: DataTypes.STRING(255),
+        allowNull: true, // Có thể cho phép null nếu bạn muốn
+      },
       // SỬA 2: Đổi "allowNull: false" thành "allowNull: true"
       // Bắt buộc phải cho phép NULL, vì file passport.js của bạn
       // sẽ gán password: null khi đăng nhập bằng Google
