@@ -59,4 +59,29 @@ router.post("/register", async (req, res) => {
     }
 });
 
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    // Gọi service
+    const data = await AuthService.forgotPassword(email);
+    res.json(data); // Luôn trả về 200 OK
+  } catch (error) {
+    // Chỉ log lỗi server, không báo lỗi chi tiết cho client
+    console.error(error);
+    res.status(500).json({ error: "Đã xảy ra lỗi server" });
+  }
+});
+
+router.post("/reset-password", async (req, res) => {
+    try {
+        const { token, newPassword } = req.body;
+        // Gọi service
+        const data = await AuthService.resetPassword(token, newPassword);
+        res.json(data); // Trả về 200 OK
+    } catch (error) {
+        // Lỗi 400 (Bad Request) nếu token sai/hết hạn
+        res.status(400).json({ error: error.message });
+    }
+});
+
 module.exports = router;

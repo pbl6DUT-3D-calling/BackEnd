@@ -51,6 +51,14 @@ module.exports = (sequelize) => {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,
       },
+      password_reset_token: {
+        type: DataTypes.STRING,
+        allowNull: true, // Sẽ là NULL hầu hết thời gian
+      },
+      password_reset_expires: {
+        type: DataTypes.DATE,
+        allowNull: true, // Sẽ là NULL hầu hết thời gian
+      },
     },
     {
       tableName: "users",
