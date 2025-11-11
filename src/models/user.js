@@ -70,6 +70,7 @@ module.exports = (sequelize) => {
     User.hasMany(models.Room, { foreignKey: "created_by" });
     User.hasMany(models.RoomUser, { foreignKey: "user_id" });
     User.hasMany(models.UserModel, { foreignKey: "user_id" });
+    User.hasMany(models.Models3D, { foreignKey: "user_id" });
   };
 
   return User;

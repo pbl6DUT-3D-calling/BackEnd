@@ -1,80 +1,142 @@
-const UserModelService  = require("../service/user_model_service");
+const UserModelService = require("../service/user_model_service");
 const cloudinary = require("../config/cloudinary");
-
-
 const { UserModel } = require("../models");
+const fs = require("fs"); // <--- THÊM VÀO: Cần để xóa file tạm
+const bucket = require("../config/firebase").bucket; // <--- THÊM VÀO: Lấy bucket từ config firebase
+// Hàm này không thay đổi
 exports.getUserModelsByUserId = async (req, res) => {
-    console.log("REQ USER:", req.user);
-  // 1. DÙNG TRY...CATCH
+  console.log("REQ USER:", req.user);
   try {
-    // 2. Lấy user_id từ req.user (giờ đã an toàn vì có verifyToken)
     const userId = req.user.user_id;
-
     if (!userId) {
       return res.status(400).json({ error: "Không tìm thấy user ID" });
     }
-
-    // 3. Truy vấn database
     const userModels = await UserModel.findAll({
       where: { user_id: userId },
     });
-
     res.json(userModels);
-
   } catch (error) {
-    // 4. Báo lỗi chi tiết (cho bạn) và lỗi chung (cho client)
-    console.error("LỖI THỰC SỰ LÀ:", error); // <-- Bạn sẽ thấy lỗi thật ở đây
+    console.error("LỖI THỰC SỰ LÀ:", error);
     res.status(500).json({ error: "Đã xảy ra lỗi khi lấy dữ liệu" });
   }
-
 };
+
+// ========= HÀM NÀY THAY ĐỔI HOÀN TOÀN =========
+// exports.uploadModelFile = async (req, res) => {
+//   // Lấy đường dẫn file tạm do multer lưu
+//   const filePath = req.file ? req.file.path : null; 
+
+//   try {
+//     // 1. Kiểm tra file (giờ ta kiểm tra filePath)
+//     if (!filePath) {
+//       return res.status(400).json({ error: "Không có file nào được tải lên." });
+//     }
+
+//     // 2. Upload file lên Cloudinary TỪ ĐƯỜNG DẪN (file path)
+//     // Dùng 'cloudinary.uploader.upload' (thay vì upload_stream)
+//     // Cloudinary sẽ tự động nhận diện file lớn và dùng chunked upload
+//     const uploadResponse = await cloudinary.uploader.upload(filePath, {
+//       resource_type: "raw", // Giữ nguyên vì là file .vrm
+//       folder: "vrm_models",
+//       public_id: `${req.user.user_id}_${Date.now()}`,
+//     });
+
+//     // 3. Lấy URL và public_id (giữ nguyên)
+//     const fileUrl = uploadResponse.secure_url;
+//     const publicId = uploadResponse.public_id;
+
+//     // 4. Lưu vào CSDL (giữ nguyên)
+//     const newModel = await UserModel.create({
+//       user_id: req.user.user_id,
+//       file_url: fileUrl,
+//       file_public_id: publicId,
+//     });
+
+//     res.status(201).json({
+//       message: "Tải file lên thành công!",
+//       model: newModel,
+//     });
+
+//   } catch (error) {
+//     console.error("LỖI KHI UPLOAD:", error);
+//     res.status(500).json({ error: "Lỗi server khi đang tải file." });
+//   } finally {
+//     // 5. RẤT QUAN TRỌNG: Xóa file tạm sau khi upload
+//     // Dù upload thành công hay thất bại, ta đều phải xóa file tạm
+//     if (filePath) {
+//       try {
+//         fs.unlinkSync(filePath); // Xóa file đồng bộ
+//       } catch (unlinkErr) {
+//         console.error("Lỗi khi xóa file tạm:", unlinkErr);
+//       }
+//     }
+//   }
+// };
+
+
 exports.uploadModelFile = async (req, res) => {
+  // Lấy đường dẫn file tạm do multer lưu
+  const filePath = req.file ? req.file.path : null;
+
   try {
-    // 1. Multer đã xử lý file và lưu vào req.file
-    if (!req.file) {
+    // 1. Kiểm tra file (giữ nguyên)
+    if (!filePath) {
       return res.status(400).json({ error: "Không có file nào được tải lên." });
     }
-    
-    // 2. Upload file lên Cloudinary từ bộ nhớ (buffer)
-    // Dùng 'upload_stream' để upload buffer
-    const uploadResponse = await new Promise((resolve, reject) => {
-      
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          // Vì là file .vrm (không phải ảnh/video), ta dùng "raw"
-          resource_type: "raw", 
-          folder: "vrm_models", // Tên thư mục trên Cloudinary
-          public_id: `${req.user.user_id}_${Date.now()}` // Tên file duy nhất
-        },
-        (error, result) => {
-          if (error) return reject(error);
-          resolve(result);
-        }
-      );
 
-      // Ghi buffer file vào stream để bắt đầu upload
-      stream.end(req.file.buffer);
+    // 2. Chuẩn bị đường dẫn trên Firebase
+    // Lấy đuôi file gốc (ví dụ: '.vrm')
+    const fileExtension = path.extname(req.file.originalname);
+    // Tạo tên file duy nhất (giống logic cũ của bạn)
+    const uniqueFilename = `${req.user.user_id}_${Date.now()}${fileExtension}`;
+    // Đây là "Public ID" mới của bạn - đường dẫn đầy đủ trên Storage
+    const destinationPath = `vrm_models/${uniqueFilename}`;
+
+    // 3. Upload file lên Firebase Storage
+    await bucket.upload(filePath, {
+      destination: destinationPath,
+      metadata: {
+        // Firebase sẽ tự phát hiện kiểu 'raw'/'binary'
+        // Bạn có thể thêm content-type nếu muốn
+        contentType: req.file.mimetype,
+      },
     });
 
-    // 3. Lấy URL an toàn (https) và public_id từ Cloudinary
-    const fileUrl = uploadResponse.secure_url;
-    const publicId = uploadResponse.public_id;
+    // 4. Lấy URL có thể truy cập (Signed URL)
+    const fileRef = bucket.file(destinationPath);
 
-    // 4. Lưu đường dẫn này vào CSDL (Postgres)
+    // Tạo một ngày hết hạn (ví dụ: 100 năm) để URL gần như vĩnh viễn
+    const expiresDate = new Date();
+    expiresDate.setFullYear(expiresDate.getFullYear() + 100);
+
+    const [signedUrl] = await fileRef.getSignedUrl({
+      action: 'read',
+      expires: expiresDate,
+    });
+    
+    // 5. Lưu vào CSDL
     const newModel = await UserModel.create({
-      user_id: req.user.user_id, // Lấy từ 'verifyToken'
-      file_url: fileUrl,
-      file_public_id: publicId, // Cần lưu lại public_id để XÓA file
-      // ... các trường khác của bạn
+      user_id: req.user.user_id,
+      file_url: signedUrl,          // <-- Dùng Signed URL
+      file_public_id: destinationPath, // <-- Dùng đường dẫn file làm ID
     });
 
     res.status(201).json({
-      message: "Tải file lên thành công!",
+      message: "Tải file lên Firebase thành công!",
       model: newModel,
     });
 
   } catch (error) {
-    console.error("LỖI KHI UPLOAD:", error);
+    console.error("LỖI KHI UPLOAD LÊN FIREBASE:", error);
     res.status(500).json({ error: "Lỗi server khi đang tải file." });
+  } finally {
+    // 6. RẤT QUAN TRỌNG: Xóa file tạm (giữ nguyên)
+    if (filePath) {
+      try {
+        fs.unlinkSync(filePath); // Xóa file đồng bộ
+      } catch (unlinkErr) {
+        console.error("Lỗi khi xóa file tạm:", unlinkErr);
+      }
+    }
   }
 };

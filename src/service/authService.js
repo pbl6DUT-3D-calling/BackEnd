@@ -1,8 +1,9 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { User } = require("../models"); // Import model User
-const {Op} = require("sequelize");
+const { Op } = require("sequelize");
 const crypto = require("crypto");
+const validator = require("validator");
 const transporter = require("../config/mail");
 require('dotenv').config();
 
@@ -20,7 +21,7 @@ class AuthService {
 
     // 2. Kiểm tra user này có password không (có thể họ đăng nhập bằng Google)
     if (!user.password) {
-        throw new Error("Tài khoản này được đăng ký qua Google. Vui lòng đăng nhập bằng Google.");
+      throw new Error("Tài khoản này được đăng ký qua Google. Vui lòng đăng nhập bằng Google.");
     }
 
     // 3. So sánh mật khẩu
@@ -37,6 +38,9 @@ class AuthService {
    * Xử lý đăng ký bằng Email/Password
    */
   static async register(fullName, username, email, password) {
+    if( !validator.isEmail(email) ) {
+      throw new Error("Email không hợp lệ");
+    }
     // 1. Kiểm tra email hoặc username đã tồn tại chưa
     const existingUser = await User.findOne({
       where: {
@@ -139,11 +143,18 @@ class AuthService {
         subject: "Link Đặt lại Mật khẩu cho VTuber Studio",
         html: emailTemplate,
       });
-      return { message: "Link đặt lại mật khẩu đã được gửi tới email của bạn." };
+      const respone = { message: "Link đặt lại mật khẩu đã được gửi tới email của bạn." };
+      if (process.env.NODE_ENV === 'test') {
+        respone.debug_token = token;
+      }
+      return respone;
     } catch (emailError) {
       console.error("LỖI GỬI EMAIL:", emailError);
       throw new Error("Lỗi khi gửi email. Vui lòng thử lại sau.");
     }
+
+
+
   }
 
   /**
@@ -170,7 +181,7 @@ class AuthService {
     // 4. Xóa token (rất quan trọng!)
     user.password_reset_token = null;
     user.password_reset_expires = null;
-    
+
     await user.save();
 
     return { message: "Mật khẩu đã được cập nhật thành công." };

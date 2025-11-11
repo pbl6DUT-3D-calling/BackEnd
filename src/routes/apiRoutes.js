@@ -1,5 +1,7 @@
 const router = require("express").Router();
 const userModelRouter = require("./user_modelRoutes");
+const model3dRouter = require("./model3dRoute");
+const userRoutes = require("./userRoute");
 const {
   verifyToken,
   isAdmin,
@@ -20,8 +22,9 @@ router.get("/me", verifyToken, (req, res) => {
     user: req.user, 
   });
 });
+router.use("/users", userRoutes);
 router.use("/user-models", userModelRouter);
-
+router.use("/model3d", model3dRouter);
 // Route chỉ dành cho ADMIN
 router.get("/admin/dashboard", verifyToken, isAdmin, (req, res) => {
   res.json({

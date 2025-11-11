@@ -20,4 +20,30 @@ Object.keys(db).forEach(modelName => {
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
+// TẮT auto-sync khi đã dùng migrations
+// Nếu muốn bật lại, uncomment đoạn code dưới
+/*
+const isDevelopment = process.env.NODE_ENV === 'development';
+if (isDevelopment) {
+  (async () => {
+    try {
+      // { alter: true }
+      // Tự động so sánh model và DB
+      // Nó sẽ thêm cột mới, sửa kiểu dữ liệu, nhưng KHÔNG XÓA CỘT.
+      // An toàn cho development, không làm mất dữ liệu.
+      await sequelize.sync({ alter: true });
+      console.log("Database synced successfully (alter: true).");
+
+      // Dùng { force: true } nếu bạn muốn XÓA SẠCH và tạo lại
+      // CẢNH BÁO: Mất toàn bộ dữ liệu.
+      // await sequelize.sync({ force: true });
+      // console.log("Database forced sync (ALL DATA LOST).");
+
+    } catch (error) {
+      console.error("Lỗi khi đồng bộ hóa database:", error);
+    }
+  })();
+}
+*/
+
 module.exports = db;
