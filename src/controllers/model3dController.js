@@ -5,44 +5,88 @@ const bucket = require("../config/firebase").bucket;
 const { Models3D } = require('../models'); 
 
 exports.uploadModelFile = async (req, res) => {
-  const filePath = req.file ? req.file.path : null;
-  const originalName = req.file ? req.file.originalname : 'untitled';
+  // 1. Lấy file từ req.files (thay vì req.file)
+  // Middleware 'upload.fields' sẽ cung cấp 'req.files'
+  const modelFile = req.files?.modelFile?.[0];       // Lấy file model
+  const thumbnailFile = req.files?.thumbnailFile?.[0]; // Lấy file thumbnail
+
+  // Lấy đường dẫn file tạm
+  const modelFilePath = modelFile?.path;
+  const thumbnailFilePath = thumbnailFile?.path;
+
+  // Lấy thông tin file model (giống như code cũ của bạn)
+  const originalModelName = modelFile ? modelFile.originalname : 'untitled';
+  const fileSizeInBytes = modelFile ? modelFile.size : 0;
 
   try {
-    if (!filePath) {
-      return res.status(400).json({ error: "Không có file nào được tải lên." });
+    // 2. Kiểm tra file model (bắt buộc)
+    if (!modelFilePath) {
+      return res.status(400).json({ error: "Không có file model nào được tải lên." });
     }
 
-    const fileExtension = path.extname(originalName); 
-    const uniqueFilename = `${req.user.user_id}_${Date.now()}${fileExtension}`;
-    const destinationPath = `vrm_models/${uniqueFilename}`;
-    await bucket.upload(filePath, {
-      destination: destinationPath,
-      metadata: {
-        contentType: req.file.mimetype,
-      },
+    // 3. Xử lý Upload file 3D (logic giống hệt code cũ)
+    const modelFileExtension = path.extname(originalModelName); 
+    const modelUniqueFilename = `${req.user.user_id}_${Date.now()}${modelFileExtension}`;
+    const modelDestinationPath = `vrm_models/${modelUniqueFilename}`;
+    
+    await bucket.upload(modelFilePath, {
+      destination: modelDestinationPath,
+      metadata: { contentType: modelFile.mimetype },
     });
 
-    const fileRef = bucket.file(destinationPath);
+    // Lấy URL file 3D
+    const modelFileRef = bucket.file(modelDestinationPath);
     const expiresDate = new Date();
     expiresDate.setFullYear(expiresDate.getFullYear() + 100);
-
-    const [signedUrl] = await fileRef.getSignedUrl({
+    const [modelSignedUrl] = await modelFileRef.getSignedUrl({
       action: 'read',
       expires: expiresDate,
     });
-    const modelName = req.body.name || originalName;
+
+    // ----- 4. Xử lý Upload file Thumbnail (PHẦN MỚI) -----
+    // Khai báo biến để lưu kết quả của thumbnail
+    let thumbnailSignedUrl = null;
+    let thumbnailDestinationPath = null;
+
+    if (thumbnailFilePath) {
+      // Nếu có file thumbnail, chúng ta mới upload nó
+      const thumbFileExtension = path.extname(thumbnailFile.originalname);
+      const thumbUniqueFilename = `${req.user.user_id}_thumb_${Date.now()}${thumbFileExtension}`;
+      thumbnailDestinationPath = `thumbnails/${thumbUniqueFilename}`; // Lưu vào folder riêng
+
+      await bucket.upload(thumbnailFilePath, {
+        destination: thumbnailDestinationPath,
+        metadata: { contentType: thumbnailFile.mimetype },
+      });
+
+      // Lấy URL file thumbnail
+      const thumbFileRef = bucket.file(thumbnailDestinationPath);
+      const [thumbUrl] = await thumbFileRef.getSignedUrl({
+        action: 'read',
+        expires: expiresDate, // Dùng chung ngày hết hạn
+      });
+      thumbnailSignedUrl = thumbUrl;
+    }
+
+    // ----- 5. Lưu vào CSDL (ĐÃ CẬP NHẬT) -----
+    const modelName = req.body.name || originalModelName;
+    
     const newModel = await Models3D.create({
       user_id: req.user.user_id,
-      file_url: signedUrl, 
-      file_public_id: destinationPath,
+      file_url: modelSignedUrl, 
+      file_public_id: modelDestinationPath,
       name:  modelName, 
       description: req.body.description || null, 
+      file_size: fileSizeInBytes,
+      // 'upload_date' sẽ được tự động điền bởi Sequelize/DB
+      
+      // Thêm 2 trường thumbnail mới
+      thumbnail_url: thumbnailSignedUrl,
+      thumbnail_public_id: thumbnailDestinationPath,
     });
 
-
     res.status(201).json({
-      message: "Tải file lên Firebase thành công!",
+      message: "Tải file và thumbnail lên Firebase thành công!",
       model: newModel,
     });
 
@@ -50,13 +94,12 @@ exports.uploadModelFile = async (req, res) => {
     console.error("LỖI KHI UPLOAD LÊN FIREBASE:", error);
     res.status(500).json({ error: "Lỗi server khi đang tải file." });
   } finally {
-
-    if (filePath) {
-      try {
-        fs.unlinkSync(filePath);
-      } catch (unlinkErr) {
-        console.error("Lỗi khi xóa file tạm:", unlinkErr);
-      }
+    // ----- 6. Xóa cả 2 file tạm (NẾU CÓ) -----
+    if (modelFilePath) {
+      try { fs.unlinkSync(modelFilePath); } catch (e) { console.error("Lỗi xóa file tạm (model):", e.message); }
+    }
+    if (thumbnailFilePath) {
+      try { fs.unlinkSync(thumbnailFilePath); } catch (e) { console.error("Lỗi xóa file tạm (thumb):", e.message); }
     }
   }
 };
