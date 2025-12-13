@@ -9,7 +9,14 @@ module.exports = {
     "database": process.env.DB_DEV_DATABASE, // Đọc từ .env
     "host": process.env.DB_DEV_HOST,       // Đọc từ .env
     "logging": false,
-    "dialect": "postgres"
+    
+    "dialect": "postgres",
+    dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false // Quan trọng để tránh lỗi self-signed cert của Azure
+    }
+  }
   },
   "test": {
       },
